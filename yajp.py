@@ -4,11 +4,11 @@ import enum
 
 def EXPECT(c, ch):
     '''
-    Assert character and move pointer to next
+    Assert character and move pointer to next (i.e "eat" a character)
     Usage:
     def parse_null(self):
         EXPECT(self, 'n')
-        # ..
+        # ...
     '''
     assert isinstance(c, YajpContext)
     assert c.json[0] == ch
@@ -53,13 +53,13 @@ class YajpContext(object):
 
     def parse_null(self):
         EXPECT(self, 'n')
-        if self.json[0] != 'u' or self.json[1] != 'l' or self.json[2] != 'l':
+        if len(self.json) < 3 or self.json[0] != 'u' or self.json[1] != 'l' or self.json[2] != 'l':
             return YajpParse.INVALID_VALUE, None
         self.json = self.json[3:]
         return YajpParse.OK, YajpValue(YajpType.NULL)
 
     def parse_value(self):
-        head = self.json[0]
+        head = self.json[0] if len(self.json) else ''
         if head == 'n':
             return self.parse_null()
         elif head == '':
