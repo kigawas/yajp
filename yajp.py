@@ -36,17 +36,13 @@ class YajpValue(object):
 
     def __init__(self, yajp_type):
         assert isinstance(yajp_type, YajpType)
-        self.yajp_type = yajp_type
-
-    @property
-    def type(self):
-        return self.yajp_type
+        self.type = yajp_type
 
 
 class YajpContext(object):
 
     def __init__(self, json):
-        self._json = json
+        self.json = json
 
     def parse_whitespace(self):
         p = 0
@@ -57,7 +53,7 @@ class YajpContext(object):
 
     def parse_null(self):
         EXPECT(self, 'n')
-        if self.json[0] != 'u' or self.json[1] != 'u' or self.json[2] != 'l':
+        if self.json[0] != 'u' or self.json[1] != 'l' or self.json[2] != 'l':
             return YajpParse.INVALID_VALUE, None
         self.json = self.json[3:]
         return YajpParse.OK, YajpValue(YajpType.NULL)
@@ -80,3 +76,5 @@ def parse(json):
     assert isinstance(value, YajpValue) or value is None
     if value is None:  # fail, set type = NULL
         return status, YajpValue(YajpType.NULL)
+    else:
+        return status, value
