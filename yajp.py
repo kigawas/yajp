@@ -30,16 +30,27 @@ class YajpParse(enum.Enum):
     EXPECT_VALUE = 1
     INVALID_VALUE = 2
     ROOT_NOT_SINGULAR = 3
+    NUMBER_TOO_BIG = 4
 
 
 class YajpValue(object):
 
-    def __init__(self, yajp_type):
+    def __init__(self, yajp_type, number=0):
         assert isinstance(yajp_type, YajpType)
         self.type = yajp_type
+        self.n = number
 
     def __repr__(self):
-        return 'YajpValue({})'.format(self.type)
+        return 'YajpValue({}, {})'.format(self.type, self.n)
+
+    @property
+    def n(self):
+        assert self.type == YajpType.NUMBER
+        return self._n
+
+    @n.setter
+    def n(self, value):
+        self._n = value
 
 
 class YajpContext(object):
@@ -56,43 +67,89 @@ class YajpContext(object):
             return ''
 
         p = 0
-        while p < len(self.json) and self.json[p] in (' ', '\t', '\n', '\r'):
+        while self.is_equal_to(p, (' ', '\t', '\n', '\r')):
             p += 1
         self.json = self.json[p:]
 
-    def parse_null(self):
-        EXPECT(self, 'n')
-        if len(self.json) < 3 or self.json[:3] != 'ull':
+    def parse_literal(self, literal, yajp_type):
+        EXPECT(self, literal[0])
+        if len(self.json) < len(literal) - 1 or self.json[:len(literal) - 1] != literal[1:]:
             return YajpParse.INVALID_VALUE, None
-        self.json = self.json[3:]
-        return YajpParse.OK, YajpValue(YajpType.NULL)
+        self.json = self.json[len(literal) - 1:]
+        return YajpParse.OK, YajpValue(yajp_type)
 
-    def parse_true(self):
-        EXPECT(self, 't')
-        if len(self.json) < 3 or self.json[:3] != 'rue':
-            return YajpParse.INVALID_VALUE, None
-        self.json = self.json[3:]
-        return YajpParse.OK, YajpValue(YajpType.TRUE)
+    def is_equal_to(self, p, c):
+        if isinstance(c, (list, tuple)):
+            return p < len(self.json) and self.json[p] in c
+        return p < len(self.json) and self.json[p] == c
 
-    def parse_false(self):
-        EXPECT(self, 'f')
-        if len(self.json) < 4 or self.json[:4] != 'alse':
-            return YajpParse.INVALID_VALUE, None
-        self.json = self.json[4:]
-        return YajpParse.OK, YajpValue(YajpType.FALSE)
+    def is_digit(self, p):
+        return p < len(self.json) and '0' <= self.json[p] <= '9'
+
+    def is_digit_1to9(self, p):
+        return p < len(self.json) and '1' <= self.json[p] <= '9'
+
+    def parse_number(self):
+        '''
+        number = [ - ] int [ frac ] [ exp ]
+        Note: int, frac, exp will be expressed by regex beneath
+        '''
+        p = 0
+        if self.is_equal_to(p, '-'):
+            p += 1
+        if self.is_equal_to(p, '0'):
+            '''
+            int = 0|[1-9][0-9]*
+            '''
+            p += 1
+        else:
+            if not self.is_digit_1to9(p):
+                return YajpParse.INVALID_VALUE, None
+            p += 1
+            while self.is_digit(p):
+                p += 1
+        if self.is_equal_to(p, '.'):
+            '''
+            frac = \.[0-9]+
+            '''
+            p += 1
+            if not self.is_digit(p):
+                return YajpParse.INVALID_VALUE, None
+            p += 1
+            while self.is_digit(p):
+                p += 1
+        if self.is_equal_to(p, ('e', 'E')):
+            '''
+            exp = (e|E)(\+|-)?[0-9]+
+            '''
+            p += 1
+            if self.is_equal_to(p, ('+', '-')):
+                p += 1
+            if not self.is_digit(p):
+                return YajpParse.INVALID_VALUE, None
+            p += 1
+            while self.is_digit(p):
+                p += 1
+
+        num = float(self.json[:p])
+
+        if num in (float('inf'), float('-inf')):
+            return YajpParse.NUMBER_TOO_BIG, None
+        self.json = self.json[p:]
+        return YajpParse.OK, YajpValue(YajpType.NUMBER, num)
 
     def parse_value(self):
         head = self.json[0] if len(self.json) else ''
         if head == 'n':
-            return self.parse_null()
+            return self.parse_literal('null', YajpType.NULL)
         elif head == 't':
-            return self.parse_true()
+            return self.parse_literal('true', YajpType.TRUE)
         elif head == 'f':
-            return self.parse_false()
+            return self.parse_literal('false', YajpType.FALSE)
         elif head == '':
             return YajpParse.EXPECT_VALUE, None
         else:
-            return YajpParse.INVALID_VALUE, None
+            return self.parse_number()
 
 
 def parse(json):
@@ -110,3 +167,8 @@ def parse(json):
                 status = YajpParse.ROOT_NOT_SINGULAR
 
         return status, value
+
+if __name__ == '__main__':
+    v = YajpValue(YajpType.NUMBER)
+    v.n = 1
+    assert v.n == 1
