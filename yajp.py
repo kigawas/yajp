@@ -38,6 +38,9 @@ class YajpValue(object):
         assert isinstance(yajp_type, YajpType)
         self.type = yajp_type
 
+    def __repr__(self):
+        return 'YajpValue({})'.format(self.type)
+
 
 class YajpContext(object):
 
@@ -45,23 +48,47 @@ class YajpContext(object):
         self.json = json
 
     def parse_whitespace(self):
+        '''
+        One line equivalent:
+            self.json = self.json.lstrip()
+        '''
+        if not self.json:
+            return ''
+
         p = 0
-        for char in self.json:
-            if char in (' ', '\t', '\n', '\r'):
-                p += 1
+        while p < len(self.json) and self.json[p] in (' ', '\t', '\n', '\r'):
+            p += 1
         self.json = self.json[p:]
 
     def parse_null(self):
         EXPECT(self, 'n')
-        if len(self.json) < 3 or self.json[0] != 'u' or self.json[1] != 'l' or self.json[2] != 'l':
+        if len(self.json) < 3 or self.json[:3] != 'ull':
             return YajpParse.INVALID_VALUE, None
         self.json = self.json[3:]
         return YajpParse.OK, YajpValue(YajpType.NULL)
+
+    def parse_true(self):
+        EXPECT(self, 't')
+        if len(self.json) < 3 or self.json[:3] != 'rue':
+            return YajpParse.INVALID_VALUE, None
+        self.json = self.json[3:]
+        return YajpParse.OK, YajpValue(YajpType.TRUE)
+
+    def parse_false(self):
+        EXPECT(self, 'f')
+        if len(self.json) < 4 or self.json[:4] != 'alse':
+            return YajpParse.INVALID_VALUE, None
+        self.json = self.json[4:]
+        return YajpParse.OK, YajpValue(YajpType.FALSE)
 
     def parse_value(self):
         head = self.json[0] if len(self.json) else ''
         if head == 'n':
             return self.parse_null()
+        elif head == 't':
+            return self.parse_true()
+        elif head == 'f':
+            return self.parse_false()
         elif head == '':
             return YajpParse.EXPECT_VALUE, None
         else:
@@ -77,4 +104,9 @@ def parse(json):
     if value is None:  # fail, set type = NULL
         return status, YajpValue(YajpType.NULL)
     else:
+        if status == YajpParse.OK:
+            c.parse_whitespace()
+            if c.json:
+                status = YajpParse.ROOT_NOT_SINGULAR
+
         return status, value
