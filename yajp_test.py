@@ -100,6 +100,16 @@ class YajpTest(unittest.TestCase):
         self.parse_invalid_number(YajpParse.NUMBER_TOO_BIG, '1e309')
         self.parse_invalid_number(YajpParse.NUMBER_TOO_BIG, '-1e309')
 
+    def parse_valid_string(self, expect, string):
+        status, v = parse(string)
+        self.assertEqual(YajpParse.OK, status)
+        self.assertEqual(YajpType.STRING, v.type)
+        self.assertEqual(expect, v.s)
 
+    def test_string(self):
+        self.parse_valid_string('json ', '"json "')
+        self.parse_valid_string('', '""')
+        # self.parse_valid_string('hello \n world', '"hello \\n world"')
+        # self.parse_valid_string('\" \\ / \b \f \n \r \t', '"\\" \\\\ / \\b \\f \\n \\r \\t"')
 if __name__ == '__main__':
     unittest.main()

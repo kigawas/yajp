@@ -31,14 +31,16 @@ class YajpParse(enum.Enum):
     INVALID_VALUE = 2
     ROOT_NOT_SINGULAR = 3
     NUMBER_TOO_BIG = 4
+    MISS_QUOTATION_MARK = 5
 
 
 class YajpValue(object):
 
-    def __init__(self, yajp_type, number=0):
+    def __init__(self, yajp_type, number=0, string=''):
         assert isinstance(yajp_type, YajpType)
         self.type = yajp_type
         self.n = number
+        self.s = string
 
     def __repr__(self):
         return 'YajpValue({}, {})'.format(self.type, self.n)
@@ -52,11 +54,29 @@ class YajpValue(object):
     def n(self, value):
         self._n = value
 
+    @property
+    def s(self):
+        assert self.type == YajpType.STRING
+        return self._s
+
+    @s.setter
+    def s(self, value):
+        self._s = value
+
 
 class YajpContext(object):
 
     def __init__(self, json):
         self.json = json
+        self.stack = []
+
+    def push(self, ch):
+        self.stack.append(ch)
+
+    def pop(self, size):
+        res = ''.join(self.stack[-size:])
+        self.stack = self.stack[:-size]
+        return res
 
     def parse_whitespace(self):
         '''
@@ -136,7 +156,19 @@ class YajpContext(object):
         if num in (float('inf'), float('-inf')):
             return YajpParse.NUMBER_TOO_BIG, None
         self.json = self.json[p:]
-        return YajpParse.OK, YajpValue(YajpType.NUMBER, num)
+        return YajpParse.OK, YajpValue(YajpType.NUMBER, number=num)
+
+    def parse_string(self):
+        EXPECT(self, '"')
+        for i, ch in enumerate(self.json):
+            if ch == '"':
+                v = YajpValue(YajpType.STRING, string=self.pop(i))
+                self.json = self.json[i + 1:]
+                return YajpParse.OK, v
+            elif i + 1 == len(self.json):
+                return YajpParse.MISS_QUOTATION_MARK, None
+            else:
+                self.push(ch)
 
     def parse_value(self):
         head = self.json[0] if len(self.json) else ''
@@ -146,6 +178,8 @@ class YajpContext(object):
             return self.parse_literal('true', YajpType.TRUE)
         elif head == 'f':
             return self.parse_literal('false', YajpType.FALSE)
+        elif head == '"':
+            return self.parse_string()
         elif head == '':
             return YajpParse.EXPECT_VALUE, None
         else:
